@@ -8,7 +8,7 @@ Each plugin repo pulls this in as a git submodule and makes one `lockedin_add_pl
 | Piece | What it does |
 |---|---|
 | `lockedin_add_plugin()` | CMake: VST3 + AU, "Locked In" vendor, `com.lockedin.<name>`, manufacturer `Lkin`, universal Mac, static MSVC runtime, assets → BinaryData, INSTALL.md |
-| `MeterBus` | Lock-free audio → UI values (`set`) and events (`fire`). Peak-hold mode so transients survive until the 60 Hz UI sees them |
+| `MeterBus` | Lock-free audio → UI values (`set`), events (`fire`) and sample-stamped events with a payload (`post`). Peak-hold mode so transients survive until the 60 Hz UI sees them |
 | `CharacterBrain` + `CharacterView` | JSON-defined sprite states, C++ rules on MeterBus values with hysteresis, one-shots, per-state intensity → shake/rise/squash/tint. Missing art draws labelled placeholder boxes |
 | `GagLayer` | UI-only jokes: speech bubble, sliding note, screen shake, DING flash |
 | `GagSounds` | Sound effects mixed into the output, **only** when the `gagSounds` toggle is on (default off, never set by presets) |
@@ -201,6 +201,33 @@ Three layers, all adjustable per rule:
 2. **Hold times:** `forMs` (must stay true this long to enter) and `releaseAfterMs` (must stay false this long to leave, default 150 ms).
 3. **Minimum dwell:** no state switch until the current state has shown for 120 ms (`brain.setMinimumDwellMs`). One-shots always play to the end.
 
+### Timed events (animation on an exact sample)
+
+`fire()` only counts. When the UI must line something up with the audio (a paw landing on the key
+the moment the glitch starts), post a **timed event** with a payload instead:
+
+```cpp
+stepId = meters.addEvent ("step");                       // processor constructor
+meters.post (stepId, sampleOffset, durationSamples, key);  // audio thread; offset may be past the block to announce plans
+```
+
+```cpp
+void tick (const lockedin::MeterSnapshot& m, double) override
+{
+    for (int i = 0; i < m.numTimed; ++i)
+        schedule (m.timed[i]);                                  // id, time, value, data
+    // m.audioNow = audio-clock sample being heard now; m.msUntil (t) = how long until t is heard
+}
+```
+
+Times are on the **audio clock**: samples processed since the plugin was created. It never jumps with
+the host transport, so it is safe to schedule against. `audioNow` assumes the device plays one block
+behind the audio thread. Posts also count as `fire()`, so `brain.trigger().onEvent()` still works.
+The queue holds 1024 events; with the editor closed it fills and new posts are dropped (never blocks).
+
+`CharacterView::frameOverride` lets the plugin pick the sprite frame itself, e.g. a walk cycle driven
+by where the next paw plant is rather than by time.
+
 ### Gags
 
 ```cpp
@@ -269,7 +296,7 @@ but not notarised, so customers have to clear the quarantine flag once. Each plu
 ```bash
 cmake -S . -B build -G Ninja
 cmake --build build
-ctest --test-dir build --output-on-failure      # MeterBus, levels, TransportRandom, character state machine
+ctest --test-dir build --output-on-failure      # MeterBus (incl. timed events), levels, TransportRandom, character state machine
 ```
 
 This builds `examples/hello-character` (installed to your plug-in folders on Mac) and the unit tests.

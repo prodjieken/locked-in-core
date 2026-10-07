@@ -3,7 +3,7 @@
 
   ID:                 lockedin_core
   vendor:             Locked In
-  version:            0.1.0
+  version:            0.2.0
   name:               Locked In core
   description:        Shared foundation for Locked In character plugins: MeterBus,
                       CharacterView, GagLayer, gag sounds, TransportRandom, params,
