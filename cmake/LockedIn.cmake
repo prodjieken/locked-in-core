@@ -11,11 +11,15 @@ set(LOCKEDIN_CORE_DIR "${CMAKE_CURRENT_LIST_DIR}/.." CACHE INTERNAL "locked-in-c
 set(LOCKEDIN_JUCE_TAG "8.0.15" CACHE STRING "JUCE git tag fetched when JUCE_DIR is not set")
 
 # House constants. Changing any of these breaks session recall for shipped plugins.
-set(LOCKEDIN_COMPANY_NAME      "Locked In")
-set(LOCKEDIN_MANUFACTURER_CODE "Lkin")             # shared with Eli
-set(LOCKEDIN_BUNDLE_PREFIX     "com.lockedin")
-set(LOCKEDIN_WEBSITE           "https://lockedinthestudio.com")
-set(LOCKEDIN_EMAIL             "info@lockedinthestudio.com")
+# CACHE INTERNAL so they are visible from the plugin repo's top-level CMakeLists:
+# this file is include()d inside locked-in-core's add_subdirectory scope, and a
+# plain set() there would leave them empty when lockedin_add_plugin() runs
+# (JUCE then silently falls back to "yourcompany" / "Manu").
+set(LOCKEDIN_COMPANY_NAME      "Locked In"                     CACHE INTERNAL "")
+set(LOCKEDIN_MANUFACTURER_CODE "Lkin"                          CACHE INTERNAL "")   # shared with Eli
+set(LOCKEDIN_BUNDLE_PREFIX     "com.lockedin"                  CACHE INTERNAL "")
+set(LOCKEDIN_WEBSITE           "https://lockedinthestudio.com" CACHE INTERNAL "")
+set(LOCKEDIN_EMAIL             "info@lockedinthestudio.com"    CACHE INTERNAL "")
 
 if(APPLE)
     set(_lockedin_copy_default ON)    # installs into ~/Library/Audio/Plug-Ins for quick DAW testing
@@ -58,6 +62,9 @@ function(lockedin_add_plugin target)
     set(multi_value SOURCES ASSETS PRESETS VST3_CATEGORIES)
     cmake_parse_arguments(LI "${options}" "${one_value}" "${multi_value}" ${ARGN})
 
+    if(NOT LOCKEDIN_COMPANY_NAME OR NOT LOCKEDIN_MANUFACTURER_CODE OR NOT LOCKEDIN_BUNDLE_PREFIX)
+        message(FATAL_ERROR "lockedin_add_plugin(${target}): Locked In house constants are not set (vendor/manufacturer/bundle prefix)")
+    endif()
     if(LI_UNPARSED_ARGUMENTS)
         message(FATAL_ERROR "lockedin_add_plugin(${target}): unknown arguments: ${LI_UNPARSED_ARGUMENTS}")
     endif()
