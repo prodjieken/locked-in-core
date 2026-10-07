@@ -5,3 +5,4 @@ cmake-build-*/
 .DS_Store
 *.swp
 compile_commands.json
+mac-build.log
