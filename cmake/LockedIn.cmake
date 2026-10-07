@@ -214,8 +214,7 @@ namespace lockedin::assets
         JUCE_VST3_CAN_REPLACE_VST2=0
         JUCE_DISPLAY_SPLASH_SCREEN=0
         JUCE_REPORT_APP_USAGE=0
-        JUCE_MODAL_LOOPS_PERMITTED=0
-        LOCKEDIN_PLUGIN_SLUG="${slug}")
+        JUCE_MODAL_LOOPS_PERMITTED=0)
 
     target_link_libraries(${target}
         PRIVATE
