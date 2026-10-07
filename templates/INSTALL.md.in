@@ -1,0 +1,72 @@
+# Installing @PLUGIN_NAME@ (v@PLUGIN_VERSION@)
+
+**@PLUGIN_NAME@** by @COMPANY_NAME@. Formats: **AU** (Mac) and **VST3** (Mac + Windows).
+Not available as AAX (Pro Tools) or standalone.
+
+---
+
+## Mac (macOS 11 Big Sur or newer, Apple Silicon and Intel)
+
+### 1. Copy the plugin files
+
+Unzip the download, then open Finder and choose **Go → Go to Folder…** to reach each folder:
+
+| File | Copy it to |
+|---|---|
+| `@PLUGIN_NAME@.component` | `~/Library/Audio/Plug-Ins/Components` |
+| `@PLUGIN_NAME@.vst3` | `~/Library/Audio/Plug-Ins/VST3` |
+
+### 2. Let macOS open it (one time)
+
+@PLUGIN_NAME@ isn't sold through the App Store, so macOS flags it as "downloaded from the
+internet" and DAWs may refuse to load it or say it's **damaged**. It isn't damaged. Clear the
+flag with either option:
+
+**Option A: Terminal (recommended, works for every DAW)**
+
+Open **Terminal** (Cmd+Space, type *Terminal*, press Return), paste this line, press Return:
+
+```
+xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/Components/"@PLUGIN_NAME@".component ~/Library/Audio/Plug-Ins/VST3/"@PLUGIN_NAME@".vst3; killall -9 AudioComponentRegistrar 2>/dev/null; echo done
+```
+
+**Option B: Open Anyway (no Terminal)**
+
+If macOS shows *"Apple could not verify @PLUGIN_NAME@ is free of malware"* when your DAW scans it:
+click **Done**, open **System Settings → Privacy & Security**, scroll down, and click
+**Open Anyway** next to the @PLUGIN_NAME@ message. Then rescan in your DAW.
+(The right-click → Open trick only works for apps, not plugin files, so use this or Option A.)
+
+### 3. Rescan in your DAW
+
+- **Logic Pro / GarageBand:** Settings → Plug-in Manager → select @PLUGIN_NAME@ → **Reset & Rescan Selection**.
+  It's under **Audio Units → @COMPANY_NAME@**.
+- **FL Studio:** Options → Manage plugins → **Find installed plugins**. Use the VST3 or AU.
+- **Ableton Live:** Settings → Plug-Ins → enable AU / VST3 system folders → **Rescan**.
+- **Others:** rescan plug-ins in your DAW's settings.
+
+---
+
+## Windows (10 or 11, 64-bit)
+
+1. Right-click the zip → **Properties** → tick **Unblock** if you see it → OK. Then **Extract All**.
+2. Copy `@PLUGIN_NAME@.vst3` into `C:\Program Files\Common Files\VST3`
+   (it may look like a folder; copy the whole thing).
+3. Rescan plug-ins in your DAW (FL Studio: Options → Manage plugins → **Find installed plugins**).
+
+---
+
+## Good to know
+
+- **Window size:** click the small ≡ button in the bottom-right corner to pick 75 / 100 / 125 %.
+- **Gag sounds** (comedy sound effects mixed into the audio) are **off by default** so they never
+  end up in a mix by accident. Turn them on from the ≡ menu if you want them.
+- **Presets** you save live in `Documents/@COMPANY_NAME@/@PLUGIN_NAME@`.
+
+## Uninstall
+
+Delete `@PLUGIN_NAME@.component` and `@PLUGIN_NAME@.vst3` from the folders above.
+
+## Help
+
+@COMPANY_EMAIL@ · @COMPANY_WEBSITE@

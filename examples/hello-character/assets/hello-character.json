@@ -1,0 +1,19 @@
+{
+  "default": "idle",
+  "states": {
+    "idle": {
+      "sheet": "hello_idle.png", "frames": 8, "fps": 6, "loop": true
+    },
+    "listening": {
+      "sheet": "hello_listening.png", "frames": 6, "fps": 10, "loop": true,
+      "fx": { "rise": 6 }
+    },
+    "loud": {
+      "sheet": "hello_loud.png", "frames": 4, "fps": 14, "loop": true,
+      "fx": { "shake": 5, "squash": 0.12, "tint": "#ff5a3c", "tintAmount": 0.45 }
+    },
+    "startled": {
+      "sheet": "hello_startled.png", "frames": 5, "fps": 10, "loop": false, "then": "loud"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  hello-character:
+    uses: ./.github/workflows/plugin-build.yml
+    with:
+      target: HelloCharacter
+      product-name: Hello Character
+      plugin-code: Hlch
+      run-tests: true

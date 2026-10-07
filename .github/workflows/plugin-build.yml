@@ -1,0 +1,177 @@
+# Reusable build for any Locked In plugin (and hello-character in this repo).
+#
+# Mac: universal (arm64 + x86_64) VST3 + AU, unsigned (ad-hoc), auval + pluginval.
+# Windows: x64 VST3, pluginval.
+# Uploads <Product>-mac.zip and <Product>-windows.zip with INSTALL.md inside.
+#
+# Plugin repo usage (.github/workflows/build.yml):
+#
+#   on: [push, pull_request, workflow_dispatch]
+#   jobs:
+#     build:
+#       uses: prodjieken/locked-in-core/.github/workflows/plugin-build.yml@main
+#       with:
+#         target: Trunk
+#         product-name: Trunk
+#         plugin-code: Trnk
+
+name: Locked In plugin build
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        description: CMake target name passed to lockedin_add_plugin
+        required: true
+        type: string
+      product-name:
+        description: PRODUCT_NAME (bundle file name), e.g. "Hello Character"
+        required: true
+        type: string
+      plugin-code:
+        description: 4-char CODE, used for auval
+        required: true
+        type: string
+      au-type:
+        description: aufx (effect), aumu (instrument), aumi (MIDI effect)
+        required: false
+        type: string
+        default: aufx
+      run-tests:
+        description: Run ctest (locked-in-core unit tests)
+        required: false
+        type: boolean
+        default: false
+      pluginval-strictness:
+        required: false
+        type: number
+        default: 5
+
+env:
+  PLUGINVAL_VERSION: v1.0.4
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: mac
+            os: macos-14
+          - name: windows
+            os: windows-latest
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Ninja (Mac)
+        if: runner.os == 'macOS'
+        run: which ninja || brew install ninja
+
+      - name: Configure
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DLOCKEDIN_COPY_AFTER_BUILD=ON
+          else
+            cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DLOCKEDIN_COPY_AFTER_BUILD=OFF
+          fi
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      - name: Unit tests
+        if: inputs.run-tests
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - name: Locate artefacts
+        id: art
+        shell: bash
+        run: |
+          DIR=$(find build -type d -path "*${{ inputs.target }}_artefacts/Release" | head -1)
+          [ -n "$DIR" ] || { echo "artefacts not found"; exit 1; }
+          echo "dir=$DIR" >> "$GITHUB_OUTPUT"
+          echo "install=$(dirname "$DIR")/INSTALL.md" >> "$GITHUB_OUTPUT"
+          ls -la "$DIR" "$DIR"/*
+
+      - name: Check universal binary (Mac)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          P="${{ inputs.product-name }}"
+          D="${{ steps.art.outputs.dir }}"
+          for bin in "$D/VST3/$P.vst3/Contents/MacOS/$P" "$D/AU/$P.component/Contents/MacOS/$P"; do
+            archs=$(lipo -archs "$bin")
+            echo "$bin: $archs"
+            [[ "$archs" == *arm64* && "$archs" == *x86_64* ]] || { echo "NOT UNIVERSAL"; exit 1; }
+          done
+          codesign -dv "$D/VST3/$P.vst3" 2>&1 | grep -i "signature" || true
+
+      - name: Get pluginval
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "macOS" ]; then ZIP=pluginval_macOS.zip; else ZIP=pluginval_Windows.zip; fi
+          curl -sSfL -o pluginval.zip "https://github.com/Tracktion/pluginval/releases/download/${PLUGINVAL_VERSION}/$ZIP"
+          unzip -q pluginval.zip -d pluginval
+
+      - name: auval (Mac)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          ls ~/Library/Audio/Plug-Ins/Components/
+          auval -v ${{ inputs.au-type }} ${{ inputs.plugin-code }} Lkin
+
+      - name: pluginval VST3
+        shell: bash
+        run: |
+          P="${{ inputs.product-name }}"
+          if [ "$RUNNER_OS" == "macOS" ]; then PV=pluginval/pluginval.app/Contents/MacOS/pluginval; else PV=pluginval/pluginval.exe; fi
+          "$PV" --strictness-level ${{ inputs.pluginval-strictness }} --validate-in-process \
+                --output-dir pluginval-logs --validate "${{ steps.art.outputs.dir }}/VST3/$P.vst3"
+
+      - name: pluginval AU (Mac)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          P="${{ inputs.product-name }}"
+          pluginval/pluginval.app/Contents/MacOS/pluginval --strictness-level ${{ inputs.pluginval-strictness }} \
+                --validate-in-process --output-dir pluginval-logs \
+                --validate "$HOME/Library/Audio/Plug-Ins/Components/$P.component"
+
+      - name: Package
+        shell: bash
+        run: |
+          P="${{ inputs.product-name }}"
+          D="${{ steps.art.outputs.dir }}"
+          N="${P// /}-${{ matrix.name }}"
+          mkdir -p "dist/$N"
+          cp -R "$D/VST3/$P.vst3" "dist/$N/"
+          [ -d "$D/AU/$P.component" ] && cp -R "$D/AU/$P.component" "dist/$N/" || true
+          cp "${{ steps.art.outputs.install }}" "dist/$N/INSTALL.md"
+          cd dist
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            ditto -c -k --keepParent "$N" "$N.zip"     # keeps bundle structure + symlinks intact
+          else
+            7z a -tzip "$N.zip" "$N" > /dev/null
+          fi
+          echo "ZIP_NAME=$N" >> "$GITHUB_ENV"
+          ls -la
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIP_NAME }}
+          path: dist/${{ env.ZIP_NAME }}.zip
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pluginval-logs-${{ matrix.name }}
+          path: pluginval-logs
+          if-no-files-found: ignore
