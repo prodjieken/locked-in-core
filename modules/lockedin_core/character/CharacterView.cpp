@@ -26,7 +26,8 @@ void CharacterView::paint (juce::Graphics& g)
 {
     const auto& state = brain.getState();
     const auto idx = brain.getStateIndex();
-    const auto frame = brain.getFrame();
+    const auto frame = frameOverride ? juce::jlimit (0, juce::jmax (0, state.frames - 1), frameOverride (state, brain.getFrame()))
+                                     : brain.getFrame();
     const auto intensity = brain.getIntensity();
 
     auto area = getLocalBounds().toFloat();

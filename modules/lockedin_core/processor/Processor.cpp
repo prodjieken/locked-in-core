@@ -111,6 +111,7 @@ void Processor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer
         buffer.clear (ch, 0, buffer.getNumSamples());
 
     random.beginBlock (getPlayHead(), buffer.getNumSamples());
+    meters.beginBlock (buffer.getNumSamples(), getSampleRate());
 
     for (auto* s : smootherList)
         s->update();

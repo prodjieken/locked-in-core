@@ -27,6 +27,11 @@ public:
     /** Override to draw extra stuff on top of the character (props, eyes following a value...). */
     std::function<void (juce::Graphics&, juce::Rectangle<float> characterBounds)> drawOverlay;
 
+    /** Optional: choose the sprite frame yourself (e.g. a walk cycle driven by
+        where the next paw plant is, instead of by time). Receives the brain's
+        time-based frame; the result is clamped to the state's frame count. */
+    std::function<int (const StateDef& state, int brainFrame)> frameOverride;
+
     void paint (juce::Graphics&) override;
 
     static juce::Colour placeholderColour (const juce::String& stateName);

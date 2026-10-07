@@ -63,6 +63,114 @@ struct MeterBusTests : juce::UnitTest
             expectEquals ((int) s.fired (e), 0);
         }
 
+        beginTest ("timed events carry block-relative time and payload");
+        {
+            MeterBus bus;
+            const auto step = bus.addEvent ("step");
+            MeterSnapshot s;
+
+            bus.beginBlock (512, 48000.0);            // block 0: samples 0..511
+            bus.post (step, 100, 0.5f, 7);
+            bus.beginBlock (512, 48000.0);            // block 1: samples 512..1023
+            bus.post (step, 10, 0.0f, 3);
+            bus.post (step, 4000, 1.0f, -1);          // planned ahead
+            bus.takeSnapshot (s);
+
+            expectEquals (s.numTimed, 3);
+            expectEquals ((int) s.timed[0].time, 100);
+            expectEquals (s.timed[0].data, 7);
+            expectEquals (s.timed[0].value, 0.5f);
+            expectEquals ((int) s.timed[1].time, 522);
+            expectEquals ((int) s.timed[2].time, 4512);
+            expectEquals ((int) s.fired (step), 3);   // posts count as fires
+
+            bus.takeSnapshot (s);
+            expectEquals (s.numTimed, 0);
+        }
+
+        beginTest ("timed queue drops instead of blocking when nobody drains");
+        {
+            MeterBus bus;
+            const auto e = bus.addEvent ("e");
+            bus.beginBlock (64, 48000.0);
+            int accepted = 0;
+            for (int i = 0; i < MeterBus::timedCapacity + 50; ++i)
+                accepted += bus.post (e, 0, 0.0f, i) ? 1 : 0;
+            expectEquals (accepted, MeterBus::timedCapacity);
+
+            MeterSnapshot s;
+            int total = 0;
+            for (int k = 0; k < 10; ++k) { bus.takeSnapshot (s); total += s.numTimed; }
+            expectEquals (total, MeterBus::timedCapacity);
+            expect (bus.post (e, 0), "accepts again once drained");
+        }
+
+        beginTest ("audio clock estimate");
+        {
+            MeterBus bus;
+            MeterSnapshot s;
+            bus.estimateAudioNow (s, 0.0);
+            expect (! s.audioRunning);
+
+            bus.beginBlock (480, 48000.0);            // 10 ms blocks
+            bus.beginBlock (480, 48000.0);            // block start 480, published now
+            const auto wall = juce::Time::getMillisecondCounterHiRes();
+
+            bus.estimateAudioNow (s, wall);           // right at the callback: hearing the previous block's start
+            expect (s.audioRunning);
+            expectEquals ((int) s.audioNow, 0);
+
+            bus.estimateAudioNow (s, wall + 5.0);     // halfway through
+            expectEquals ((int) s.audioNow, 240);
+
+            bus.estimateAudioNow (s, wall + 50.0);    // late callback: clamp, don't run ahead of processed audio
+            expectEquals ((int) s.audioNow, 480);
+
+            bus.estimateAudioNow (s, wall + 2.0);     // jitter never steps backwards
+            expectEquals ((int) s.audioNow, 480);
+            expectEquals (s.msUntil (480 + 4800), 100.0);
+
+            bus.estimateAudioNow (s, wall + 5000.0);
+            expect (! s.audioRunning);
+        }
+
+        beginTest ("concurrent timed producer and consumer");
+        {
+            MeterBus bus;
+            const auto e = bus.addEvent ("e");
+            constexpr int n = 100000;
+            std::atomic<bool> done { false };
+
+            std::thread audio ([&]
+            {
+                int sent = 0;
+                while (sent < n)
+                {
+                    bus.beginBlock (32, 48000.0);
+                    if (bus.post (e, 0, 0.0f, sent))
+                        ++sent;
+                    else
+                        std::this_thread::yield();
+                }
+                done = true;
+            });
+
+            MeterSnapshot s;
+            int expected = 0;
+            bool inOrder = true;
+            while (! done || expected < n)
+            {
+                bus.takeSnapshot (s);
+                for (int i = 0; i < s.numTimed; ++i)
+                    inOrder = inOrder && s.timed[(size_t) i].data == expected++;
+                if (done && s.numTimed == 0 && expected < n)
+                    break;
+            }
+            audio.join();
+            expect (inOrder, "events arrive complete and in order");
+            expectEquals (expected, n);
+        }
+
         beginTest ("concurrent writer and reader");
         {
             MeterBus bus;
