@@ -63,6 +63,8 @@ public:
         {
             if (minIsSilence && v <= min + 0.001f)
                 return juce::String ("-inf dB");
+            if (std::abs (v) < 0.05f)
+                return juce::String ("0.0 dB");   // never "-0.0 dB"
             return (v > 0.0f ? "+" : "") + juce::String (v, 1) + " dB";
         };
         return addFloat (id, name, { min, max, 0.01f }, def, "dB", toText, smoothingMs,
