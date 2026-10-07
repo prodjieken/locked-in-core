@@ -97,6 +97,7 @@ jobs:
         run: |
           set -o pipefail
           ctest --test-dir build -C Release --output-on-failure 2>&1 | tee ci-step.log
+          echo "::notice title=unit tests (${{ matrix.name }})::$(grep -E 'tests passed|ALL TESTS PASSED|TESTS FAILED' ci-step.log | tail -1)"
 
       - name: Locate artefacts
         id: art
@@ -118,6 +119,7 @@ jobs:
             archs=$(lipo -archs "$bin")
             echo "$bin: $archs"
             [[ "$archs" == *arm64* && "$archs" == *x86_64* ]] || { echo "NOT UNIVERSAL"; exit 1; }
+            echo "::notice title=universal::$(basename "$bin") $archs"
           done
           codesign -dv "$D/VST3/$P.vst3" 2>&1 | grep -i "signature" || true
 
@@ -136,6 +138,7 @@ jobs:
           ls ~/Library/Audio/Plug-Ins/Components/
           set -o pipefail
           auval -v ${{ inputs.au-type }} ${{ inputs.plugin-code }} Lkin 2>&1 | tee ci-step.log
+          echo "::notice title=auval::$(grep -E 'AU VALIDATION' ci-step.log | tail -1)"
 
       - name: pluginval VST3
         shell: bash
@@ -145,6 +148,7 @@ jobs:
           set -o pipefail
           "$PV" --strictness-level ${{ inputs.pluginval-strictness }} --validate-in-process \
                 --output-dir pluginval-logs --validate "${{ steps.art.outputs.dir }}/VST3/$P.vst3" 2>&1 | tee ci-step.log
+          echo "::notice title=pluginval VST3 (${{ matrix.name }})::strictness ${{ inputs.pluginval-strictness }}, $(grep -c 'Starting tests in' ci-step.log) test groups, $(grep -cE '!!! Test|FAILED' ci-step.log) failures. $(grep -E 'SUCCESS|ALL TESTS PASSED' ci-step.log | tail -1)"
 
       - name: pluginval AU (Mac)
         if: runner.os == 'macOS'
@@ -155,6 +159,7 @@ jobs:
           pluginval/pluginval.app/Contents/MacOS/pluginval --strictness-level ${{ inputs.pluginval-strictness }} \
                 --validate-in-process --output-dir pluginval-logs \
                 --validate "$HOME/Library/Audio/Plug-Ins/Components/$P.component" 2>&1 | tee ci-step.log
+          echo "::notice title=pluginval AU (mac)::strictness ${{ inputs.pluginval-strictness }}, $(grep -c 'Starting tests in' ci-step.log) test groups, $(grep -cE '!!! Test|FAILED' ci-step.log) failures. $(grep -E 'SUCCESS|ALL TESTS PASSED' ci-step.log | tail -1)"
 
       - name: Package
         shell: bash
