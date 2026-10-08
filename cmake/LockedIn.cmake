@@ -11,11 +11,13 @@ set(LOCKEDIN_CORE_DIR "${CMAKE_CURRENT_LIST_DIR}/.." CACHE INTERNAL "locked-in-c
 set(LOCKEDIN_JUCE_TAG "8.0.15" CACHE STRING "JUCE git tag fetched when JUCE_DIR is not set")
 
 # House constants. Changing any of these breaks session recall for shipped plugins.
-set(LOCKEDIN_COMPANY_NAME      "Locked In")
-set(LOCKEDIN_MANUFACTURER_CODE "Lkin")             # shared with Eli
-set(LOCKEDIN_BUNDLE_PREFIX     "com.lockedin")
-set(LOCKEDIN_WEBSITE           "https://lockedinthestudio.com")
-set(LOCKEDIN_EMAIL             "info@lockedinthestudio.com")
+# CACHE INTERNAL so they are visible to plugin repos that add_subdirectory(locked-in-core);
+# plain set() would only exist inside this folder's scope.
+set(LOCKEDIN_COMPANY_NAME      "Locked In"                       CACHE INTERNAL "")
+set(LOCKEDIN_MANUFACTURER_CODE "Lkin"                            CACHE INTERNAL "")   # shared with Eli
+set(LOCKEDIN_BUNDLE_PREFIX     "com.lockedin"                    CACHE INTERNAL "")
+set(LOCKEDIN_WEBSITE           "https://lockedinthestudio.com"   CACHE INTERNAL "")
+set(LOCKEDIN_EMAIL             "info@lockedinthestudio.com"      CACHE INTERNAL "")
 
 if(APPLE)
     set(_lockedin_copy_default ON)    # installs into ~/Library/Audio/Plug-Ins for quick DAW testing
@@ -66,6 +68,9 @@ function(lockedin_add_plugin target)
     endif()
     if(LI_CODE STREQUAL LOCKEDIN_MANUFACTURER_CODE)
         message(FATAL_ERROR "lockedin_add_plugin(${target}): CODE must differ from the manufacturer code")
+    endif()
+    if(NOT LOCKEDIN_COMPANY_NAME)
+        message(FATAL_ERROR "lockedin_add_plugin(${target}): house constants not visible (company '${LOCKEDIN_COMPANY_NAME}')")
     endif()
     if(NOT LI_SOURCES)
         message(FATAL_ERROR "lockedin_add_plugin(${target}): SOURCES is required")
